@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>HighStock</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+	<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.2/css/bootstrap.min.css"> <!-- load bootstrap css -->
+	<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css"> <!-- load fontawesome -->
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+	<script src="https://fb.me/react-15.0.2.js"></script>
+	<!-- The ReactDOM Library -->
+	<script src="https://fb.me/react-dom-15.0.2.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.24/browser.min.js"></script>
+	<script src="https://code.highcharts.com/stock/highstock.js"></script>
+	<script src="https://code.highcharts.com/stock/modules/exporting.js"></script>
+</head>
+<body>
+	<div id="container" style="height: 400px; min-width: 310px"></div>
+	
+	<div class="container">
+		<div id="react" class="container-fluid"></div>
+	</div>
+	
+	<script type="text/babel">
+		var colors = [
+			"#FF6384",
+			"#4BC0C0",
+			"#FFCE56",
+			"#90EE7E",
+			"#36A2EB"
+		];
+		var seriesOptions = [];
+		// seriesCounter = 0,
+		// getCurrentStocks();
+
+		/**
+		 * Create the chart when all data is loaded
+		 * @returns {undefined}
+		 */
+		function createChart() {
+
+			$('#container').highcharts('StockChart', {
+
+				rangeSelector: {
+					selected: 4
+				},
+
+				yAxis: {
+					labels: {
+						formatter: function () {
+							return (this.value > 0 ? ' + ' : '') + this.value + '%';
+						}
+					},
+					plotLines: [{
+						value: 0,
+						width: 2,
+						color: 'silver'
+					}]
+				},
+
+				plotOptions: {
+					series: {
+						compare: 'percent'
+					}
+				},
+
+				tooltip: {
+					pointFormat: '<span style="color:{series.color}">{series.name}</span>: <b>{point.y}</b> ({point.change}%)<br/>',
+					valueDecimals: 2
+				},
+
+				series: seriesOptions
+			});
+		}
+
+		function ob (x) {
+			return document.getElementById(x);
+		}
+
+		var Stock = React.createClass({
+			render(){
+				return (
+					<div className="col-md-4 col-sm-6 stock-block">
+						<h3>{this.props.symbol}<button type="button" className="close" onClick={this.handleClick.bind(this, this.props.symbol)}>×</button></h3>
+					</div>
+				)
+			},
+			handleClick(symbol){
+				this.props.handleDelete(symbol);
+			}
+		})
+
+		var StockArea = React.createClass({
+			render: function() {
+				var names = this.props.names;
+				var stocks = names.map(function(val, index){
+					return <Stock symbol={val} handleDelete={this.props.handleDelete.bind(this, val)} key={val} />
+				}.bind(this));
+				return (
+					<div className="container-fluid">
+						<div className="row">
+							<div className="col-md-4 col-sm-6 col-xs-12 col-lg-4 stock-block stock-new">
+								<label>Syncs in realtime across clients</label>
+								<div className="input-group">
+									<input className="form-control" id="new-stock" placeholder="Stock code" /><span className="input-group-btn"><button className="btn btn-success" onClick={this.handleClickAdd}>Add</button></span>
+								</div>
+							</div>
+						</div>
+						<div className="row">
+							{stocks}
+						</div>
+					</div>
+				);
+			},
+			handleClickAdd(){
+				this.props.handleAdd(ob('new-stock').value);
+			}
+		});
+
+		var App = React.createClass({
+			getInitialState(){
+				return {
+					names: []
+				}
+			},
+			render(){
+				return (
+					<StockArea names={this.state.names} handleDelete={this.deleteStock} handleAdd={this.addStock} />
+				)
+			},
+			deleteStock(symbol){
+				var oldNames = this.state.names
+				var index = oldNames.indexOf(symbol);
+				if (index >= 0){
+					oldNames.splice(index, 1);
+					this.setState({
+						names: oldNames
+					});
+					this.renderChart();
+					$.ajax({
+						url: '/api/stock/delete/' + symbol,
+						type: 'GET',
+						success: function (data) {
+							console.log(data);
+						},
+						error: function (err) {
+							console.log(err);
+						}
+					});
+				}
+			},
+			addStock(symbol){
+				this.setState({
+					names: this.state.names.push(symbol)
+				});
+				this.renderChart();
+				$.ajax({
+					url: '/api/stock/add/' + symbol,
+					type: 'GET',
+					success: function (data) {
+						console.log(data);
+					},
+					error: function (err) {
+						console.log(err);
+					}
+				})
+			},
+			componentDidMount(){
+				var interval = setInterval(function () {
+					this.getCurrentStocks();
+				}.bind(this), 2000);
+			},
+			getCurrentStocks() {
+				$.getJSON('/api/get/all', function (data) {
+					console.log(data);
+					if (data.status == 'OK'){
+						data = data.data;
+						if (this.state.names.length != data.length){
+							this.setState({
+								names: data
+							});
+							this.renderChart();
+							return;
+						}
+						var check = true;
+						for (var i = 0; i < data.length; i++) {
+							if (this.state.names.indexOf(data[i]) < 0){
+								this.setState({
+									names: data
+								});
+								this.renderChart();
+								return;
+							}
+						};
+					}
+				}.bind(this));
+			},
+			renderChart() {
+				seriesOptions = [];
+				$.each(this.state.names, function (i, name) {
+
+					$.getJSON('/api/stock/get/' + name.toLowerCase(),    function (data) {
+
+						if (data.status != 'OK'){
+							console.log('err');
+							return;
+						}
+
+						console.log(data);
+
+						seriesOptions.push({
+							name: name,
+							data: data.data,
+							color: colors[seriesOptions.length]
+						});
+
+						createChart();
+					});
+				});
+		}
+		})
+
+		ReactDOM.render(<App />, ob('react'))
+
+	</script>
+</body>
+</html>
