@@ -142,7 +142,7 @@
 						url: '/api/stock/delete/' + symbol,
 						type: 'GET',
 						success: function (data) {
-							console.log(data);
+							// console.log(data);
 						},
 						error: function (err) {
 							console.log(err);
@@ -159,7 +159,7 @@
 					url: '/api/stock/add/' + symbol,
 					type: 'GET',
 					success: function (data) {
-						console.log(data);
+						// console.log(data);
 					},
 					error: function (err) {
 						console.log(err);
@@ -173,7 +173,7 @@
 			},
 			getCurrentStocks() {
 				$.getJSON('/api/get/all', function (data) {
-					console.log(data);
+					// console.log(data);
 					if (data.status == 'OK'){
 						data = data.data;
 						if (this.state.names.length != data.length){
@@ -198,6 +198,7 @@
 			},
 			renderChart() {
 				seriesOptions = [];
+				var noOfSeries = 0;
 				$.each(this.state.names, function (i, name) {
 
 					$.getJSON('/api/stock/get/' + name.toLowerCase(),    function (data) {
@@ -207,7 +208,7 @@
 							return;
 						}
 
-						console.log(data);
+						// console.log(data);
 
 						seriesOptions.push({
 							name: name,
@@ -215,9 +216,13 @@
 							color: colors[seriesOptions.length]
 						});
 
-						createChart();
-					});
-				});
+						noOfSeries++;
+
+						if (noOfSeries >= this.state.names.length){
+							createChart();
+						}
+					}.bind(this));
+				}.bind(this));
 		}
 		})
 
